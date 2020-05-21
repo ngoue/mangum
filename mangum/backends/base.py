@@ -11,14 +11,15 @@ class WebSocketBackend:
     """
 
     dsn: str
+    connection_id: str
 
-    def create(self, connection_id: str, initial_scope: str) -> None:
+    def set(self, key: str, *, value: dict, create: bool = False) -> None:
         """
         Store the connection id and initial scope during the WebSocket CONNECT event.
         """
         raise NotImplementedError()
 
-    def fetch(self, connection_id: str) -> str:
+    def get(self, key: str) -> str:
         """
         Retrieve and return the initial scope during the WebSocket MESSAGE event.
         """

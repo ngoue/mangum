@@ -235,7 +235,7 @@ class Mangum:
             source_ip = event["requestContext"].get("identity", {}).get("sourceIp")
             client = (source_ip, 0)
 
-            initial_scope = {
+            scope = {
                 "type": "websocket",
                 "path": "/",
                 "headers": headers,
@@ -248,16 +248,17 @@ class Mangum:
                 "aws": {"event": event, "context": None},
             }
 
-            websocket.create(initial_scope)
+            websocket.on_connect(scope)
             response = {"statusCode": 200}
 
         elif event_type == "MESSAGE":
-            websocket.fetch()
+            request_context = event["requestContext"]
+            websocket.on_message(request_context)
             asgi_cycle = WebSocketCycle(event["body"], websocket=websocket)
             response = asgi_cycle(self.app)
 
         elif event_type == "DISCONNECT":
-            websocket.delete()
+            websocket.on_close()
             response = {"statusCode": 200}
 
         return response

@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 
 import redis
@@ -10,13 +11,19 @@ class RedisBackend(WebSocketBackend):
     def __post_init__(self) -> None:
         self.connection = redis.Redis.from_url(self.dsn)
 
-    def create(self, connection_id: str, initial_scope: str) -> None:
-        self.connection.set(connection_id, initial_scope)
+    def get(self, key: str) -> dict:
+        connection_data = json.loads(self.connection.get(self.connection_id))
+        value = connection_data[key]
 
-    def fetch(self, connection_id: str) -> str:
-        initial_scope = self.connection.get(connection_id)
+        return value
 
-        return initial_scope
+    def set(self, key: str, *, value: dict, create: bool = False) -> None:
+        _connection_data = {}
+        if not create:
+            connection_data = self.connection.get(self.connection_id)
+            _connection_data = json.loads(connection_data)
+        _connection_data[key] = value
+        self.connection.set(self.connection_id, json.dumps(_connection_data))
 
-    def delete(self, connection_id: str) -> None:
-        self.connection.delete(connection_id)
+    def delete(self) -> None:
+        self.connection.delete(self.connection_id)

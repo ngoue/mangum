@@ -1,4 +1,3 @@
-import json
 import logging
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -39,52 +38,53 @@ class WebSocket:
             )
             from mangum.backends.sqlite import SQLiteBackend
 
-            self._backend = SQLiteBackend(self.dsn)  # type: ignore
+            self._backend = SQLiteBackend(self.dsn, self.connection_id)  # type: ignore
         elif scheme == "dynamodb":
             from mangum.backends.dynamodb import DynamoDBBackend
 
-            self._backend = DynamoDBBackend(self.dsn)  # type: ignore
+            self._backend = DynamoDBBackend(
+                self.dsn, self.connection_id
+            )  # type: ignore
         elif scheme == "s3":
             from mangum.backends.s3 import S3Backend
 
-            self._backend = S3Backend(self.dsn)  # type: ignore
+            self._backend = S3Backend(self.dsn, self.connection_id)  # type: ignore
 
         elif scheme in ("postgresql", "postgres"):
             from mangum.backends.postgresql import PostgreSQLBackend
 
-            self._backend = PostgreSQLBackend(self.dsn)  # type: ignore
+            self._backend = PostgreSQLBackend(
+                self.dsn, self.connection_id
+            )  # type: ignore
 
         elif scheme == "redis":
             from mangum.backends.redis import RedisBackend
 
-            self._backend = RedisBackend(self.dsn)  # type: ignore
+            self._backend = RedisBackend(self.dsn, self.connection_id)  # type: ignore
 
         else:
             raise ConfigurationError(f"{scheme} does not match a supported backend.")
         self.logger.debug("WebSocket backend connection established.")
 
-    def create(self, initial_scope: dict) -> None:
+    def on_connect(self, initial_scope: dict) -> None:
         self.logger.debug("Creating scope entry for %s", self.connection_id)
-        initial_scope_json = json.dumps(initial_scope)
-        self._backend.create(self.connection_id, initial_scope_json)
-        self.logger.debug("Scope entry created.")
+        self._backend.set("scope", value=initial_scope, create=True)
 
-    def fetch(self) -> None:
+    def on_message(self, request_context: dict) -> None:
         self.logger.debug("Fetching scope entry for %s", self.connection_id)
-        initial_scope = self._backend.fetch(self.connection_id)
-        scope = json.loads(initial_scope)
+        scope = self._backend.get("scope")
+        scope["aws.request"] = request_context
+        self._backend.set("scope", value=scope)
         query_string = scope["query_string"]
         headers = scope["headers"]
         if headers:
             headers = [[k.encode(), v.encode()] for k, v in headers.items() if headers]
         scope.update({"headers": headers, "query_string": query_string.encode()})
         self.scope: Scope = scope
-        self.logger.debug("Scope entry fetched.")
 
-    def delete(self) -> None:
+    def on_close(self) -> None:
         self.logger.debug("Deleting scope entry for %s", self.connection_id)
-        self._backend.delete(self.connection_id)
-        self.logger.debug("Scope entry deleted.")
+        self._backend.delete()
 
     def post_to_connection(self, msg_data: bytes) -> None:  # pragma: no cover
         try:
@@ -99,6 +99,6 @@ class WebSocket:
         except ClientError as exc:
             status_code = exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode")
             if status_code == 410:
-                self.delete()
+                self.on_close()
             else:
                 raise WebSocketError(exc)
