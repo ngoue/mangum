@@ -252,9 +252,10 @@ class Mangum:
             response = {"statusCode": 200}
 
         elif event_type == "MESSAGE":
+
             request_context = event["requestContext"]
             websocket.on_message(request_context)
-            asgi_cycle = WebSocketCycle(event["body"], websocket=websocket)
+            asgi_cycle = WebSocketCycle(event.get("body", ""), websocket=websocket)
             response = asgi_cycle(self.app)
 
         elif event_type == "DISCONNECT":
