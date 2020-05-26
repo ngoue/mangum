@@ -3,6 +3,7 @@ import urllib.parse
 import typing
 import logging
 import os
+import json
 import warnings
 from contextlib import ExitStack
 from dataclasses import dataclass
@@ -107,6 +108,7 @@ class Mangum:
             )
 
     def __call__(self, event: dict, context: dict) -> dict:
+        self.logger.info('[mangum] EVENT: %s', json.dumps(event, indent=4))
         return self.handler(event, context)
 
     def strip_base_path(self, path: str) -> str:
